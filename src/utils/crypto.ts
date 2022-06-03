@@ -1,6 +1,8 @@
-import { encodeBytes, decodeBytes } from "./utils";
-
 const algo = "AES-CBC";
+
+export const encodeBytes = (txt: string) => new TextEncoder().encode(txt);
+
+export const decodeBytes = (txt: Uint8Array) => new TextDecoder().decode(txt);
 
 const pack = (buff: ArrayBufferLike) =>
   window.btoa(
@@ -16,10 +18,18 @@ const unpack = (packed: string) => {
   return new Uint8Array(str.length).map((_, i) => str.charCodeAt(i)).buffer;
 };
 
-export const genKey = async (secret: string) =>
+export const deriveBytes = async (namespace: string, secret: string) =>
+  crypto.subtle.digest(
+    {
+      name: "SHA-256",
+    },
+    encodeBytes(`${secret}:${namespace}:${secret}`)
+  );
+
+export const genKey = async (secret: string, namespace = "SDP") =>
   crypto.subtle.importKey(
     "raw",
-    await crypto.subtle.digest({ name: "SHA-256" }, encodeBytes(secret)),
+    await deriveBytes(namespace, secret),
     { name: algo },
     false,
     ["encrypt", "decrypt"]

@@ -1,17 +1,9 @@
-import {
-  encodeBytes,
-  entries,
-  events,
-  fromEntries,
-  genId,
-  initPeer,
-  libName,
-  selfId,
-} from "./utils";
-import { decrypt, encrypt, genKey } from "./crypto";
+import { entries, events, fromEntries, genId } from "../utils/torrent";
+import {decrypt, encodeBytes, encrypt, genKey} from "../utils/crypto";
 import Peer from "simple-peer-light";
 import { EventEmitter } from "events";
 
+const libName = "poc";
 const INFO_HASH_SIZE = 20;
 const offerPoolSize = 10;
 const defaultAnnounceSecs = 33;
@@ -78,6 +70,14 @@ export class DiscoveryManager extends EventEmitter {
     this.connectedPeers.clear();
   }
 
+  private initPeer(
+    initiator: boolean,
+    trickle: boolean,
+    config?: RTCConfiguration
+  ) {
+    return new Peer({ initiator, trickle, config });
+  }
+
   private async handleTrackerMessage(socketId: string, message: MessageEvent) {
     const socket = this.sockets.get(socketId)!;
     type WebTorrentMessage = {
@@ -132,7 +132,7 @@ export class DiscoveryManager extends EventEmitter {
         return;
       }
 
-      const peer = initPeer(false, false, this.rtcConfig);
+      const peer = this.initPeer(false, false, this.rtcConfig);
 
       peer.once(events.signal, async (answer) =>
         socket.send(
@@ -141,7 +141,7 @@ export class DiscoveryManager extends EventEmitter {
             answer: { ...answer, sdp: await encrypt(announce.key, answer.sdp) },
             action: TRACKER_ACTION,
             info_hash: msg.info_hash,
-            peer_id: selfId,
+            peer_id: this.selfId,
             to_peer_id: msg.peer_id,
             offer_id: msg.offer_id,
           })
@@ -245,7 +245,7 @@ export class DiscoveryManager extends EventEmitter {
   private createOffers = () =>
     fromEntries(
       new Array(offerPoolSize).fill("").map(() => {
-        const peer = initPeer(true, false, this.rtcConfig);
+        const peer = this.initPeer(true, false, this.rtcConfig);
 
         return [
           genId(INFO_HASH_SIZE),
@@ -291,7 +291,7 @@ export class DiscoveryManager extends EventEmitter {
             action: TRACKER_ACTION,
             info_hash: infoHash,
             numwant: offerPoolSize,
-            peer_id: selfId,
+            peer_id: this.selfId,
             offers: await Promise.all(
               entries(announce.offers)
                 .filter(([, { acquired }]) => !acquired)
