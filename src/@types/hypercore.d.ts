@@ -31,7 +31,7 @@ declare module "hypercore" {
       start: number,
       end: number,
       options: Omit<GetOptions, "onwait">,
-      cb: PublicCallback<T[]>
+      cb: PublicCallback<T[]>,
     ): number;
 
     cancel(getId: number);
@@ -44,7 +44,7 @@ declare module "hypercore" {
       range?:
         | { blocks: number[] }
         | { start: number; end: number; linear?: boolean },
-      cb?: PublicCallback
+      cb?: PublicCallback,
     ): number;
 
     undownload(downloadId: number);
@@ -52,14 +52,14 @@ declare module "hypercore" {
     signature(cb: PublicCallback<{ index: number; signature: Buffer }>);
     signature(
       index: number,
-      cb: PublicCallback<{ index: number; signature: Buffer }>
+      cb: PublicCallback<{ index: number; signature: Buffer }>,
     );
 
     verify(index: number, signature: Buffer, cb: PublicCallback<boolean>);
 
     rootHashes(
       index: number,
-      cb: PublicCallback<Array<{ index: number; size: number; hash: Buffer }>>
+      cb: PublicCallback<Array<{ index: number; size: number; hash: Buffer }>>,
     );
 
     // TODO check
@@ -75,14 +75,14 @@ declare module "hypercore" {
       byteOffset: number,
       options:
         | ((err: null, index: number, relativeOffset: number) => void)
-        | ((err: Error) => void)
+        | ((err: Error) => void),
     );
 
     update(cb?: PublicCallback);
     update(minLength: number, cb?: PublicCallback);
     update(
       opts: { ifAvailable?: boolean; minLength?: number },
-      cb?: PublicCallback
+      cb?: PublicCallback,
     );
 
     setDownloading(downloadFromOtherPeers: boolean);
@@ -98,13 +98,13 @@ declare module "hypercore" {
         timeout: number;
         wait: boolean;
         batch: number;
-      }>
+      }>,
     ): NodeJS.ReadableStream;
 
     createWritableStream(
       opts?: Partial<{
         maxBlockSize: number;
-      }>
+      }>,
     ): NodeJS.WritableStream;
 
     replicate(
@@ -120,12 +120,12 @@ declare module "hypercore" {
 
         onauthenticate(remotePublicKey: Buffer, done: boolean);
         onfeedauthenticate(feed: this, remotePublicKey: Buffer, done: boolean);
-      }>
+      }>,
     ): NodeJS.ReadWriteStream;
 
     on(
       event: "ack",
-      cb: (ack: { start: number; length: number }) => void
+      cb: (ack: { start: number; length: number }) => void,
     ): this;
 
     close(cb?: PublicCallback);
@@ -160,7 +160,7 @@ declare module "hypercore" {
         encoding: "json" | "binary" | "utf-8" | string;
         onmessage(message: unknown, peer: Peer);
         onerror(err: Error);
-      }
+      },
     ): T;
 
     on(event: "ready", cb: () => void);
@@ -205,7 +205,7 @@ declare module "hypercore" {
   function hypercore<T>(
     store: AbstractRandomAccess | string,
     key: Buffer,
-    options?: Partial<FabricOptions<T>>
+    options?: Partial<FabricOptions<T>>,
   ): HyperCoreFeed<T>;
 
   export default hypercore;
