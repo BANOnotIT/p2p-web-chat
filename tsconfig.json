@@ -16,6 +16,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    "noImplicitAny": true,
     "experimentalDecorators": true
   },
   "include": ["src"]
