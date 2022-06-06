@@ -6,6 +6,7 @@ import hypercore, { HyperCoreFeed } from "hypercore";
 import { DiscoveryManager } from "./DiscoveryManager";
 import { HypercoreSynchronize } from "./HypercoreSynchronize";
 import Peer from "simple-peer";
+import { promisify } from "bluebird";
 
 export class ChatStore {
   private cryptor: AESCBCCryptor;
@@ -68,7 +69,19 @@ export class ChatStore {
   }
 
   async getMessages(): Promise<UserMessageBuf[]> {
-    return [];
+    if (this.myMessagesCore.length === 0) {
+      return [];
+    }
+
+    const messages = (await promisify(this.myMessagesCore.getBatch).call(
+      this.myMessagesCore,
+      0,
+      this.myMessagesCore.length,
+    )) as Buffer[];
+
+    return Promise.all(
+      messages?.map((message) => this.decryptMessage(Uint8Array.from(message))),
+    );
   }
 
   async sendMessage(msg: UserMessageBuf) {
