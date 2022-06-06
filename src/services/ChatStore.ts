@@ -19,6 +19,7 @@ export class ChatStore {
 
   constructor(
     private chatId: NonNullable<ChatEntity["id"]>,
+    readonly name: string,
     private insides: ChatBuf,
     private discoveryMgr: DiscoveryManager,
   ) {
@@ -50,6 +51,14 @@ export class ChatStore {
 
   destroy() {
     this.discoveryMgr.off("peer connected", this.peerConnectedListener);
+  }
+
+  get uuid() {
+    return this.insides.uuid;
+  }
+
+  get sharedSecret() {
+    return this.insides.sharedSecret;
   }
 
   async connectToPeers() {
