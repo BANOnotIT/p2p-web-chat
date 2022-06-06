@@ -2,7 +2,7 @@ import Peer from "simple-peer";
 import { HyperCoreFeed } from "hypercore";
 import { crc32 } from "crc";
 import { Channel, MessageWrapperBuf } from "../protobuf/MessageWrapper.buf";
-import { Transform, TransformCallback } from "stream";
+import { Transform } from "readable-stream";
 
 export class HypercoreSynchronize {
   constructor(
@@ -38,7 +38,7 @@ class WrapMessage extends Transform {
   _transform(
     chunk: Uint8Array,
     encoding: BufferEncoding,
-    callback: TransformCallback,
+    callback: (err?: null | Error, data?: any) => void,
   ) {
     const wrappedMessage = new MessageWrapperBuf();
     wrappedMessage.idx = this.channelIdx;
@@ -59,7 +59,7 @@ class FilterAndUnwrap extends Transform {
   _transform(
     chunk: Uint8Array,
     encoding: BufferEncoding,
-    callback: TransformCallback,
+    callback: (err?: null | Error, data?: any) => void,
   ) {
     const wrapped = MessageWrapperBuf.decode(chunk);
     if (
