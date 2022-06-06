@@ -2,6 +2,7 @@ import { ChatDatabase } from "./ChatDatabase";
 import { AESCBCCryptor } from "./AESCBCCryptor";
 import { ChatStore } from "./ChatStore";
 import { ChatBuf } from "../protobuf/Chat.buf";
+import { v5 } from "uuid";
 
 export class ChatListStore {
   constructor(private db: ChatDatabase, private cryptor: AESCBCCryptor) {}
@@ -27,6 +28,7 @@ export class ChatListStore {
     const enc = new TextEncoder();
     const buf = new ChatBuf();
     buf.sharedSecret = enc.encode(sharedSecret);
+    buf.uuid = v5(buf.sharedSecret, "chat");
 
     const encrypted = await this.cryptor.encrypt(ChatBuf.encode(buf).finish());
 
