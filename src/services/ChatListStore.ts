@@ -2,10 +2,20 @@ import { ChatDatabase } from "./ChatDatabase";
 import { AESCBCCryptor } from "./AESCBCCryptor";
 import { ChatStore } from "./ChatStore";
 import { ChatBuf } from "../protobuf/Chat.buf";
-import { v5 } from "uuid";
+import { NIL, v5 } from "uuid";
+import { DiscoveryManager } from "./DiscoveryManager";
+import EventEmitter from "events";
 
-export class ChatListStore {
-  constructor(private db: ChatDatabase, private cryptor: AESCBCCryptor) {}
+const CHAT_NAMESPACE = v5("chat", NIL);
+
+export class ChatListStore extends EventEmitter {
+  constructor(
+    private db: ChatDatabase,
+    private cryptor: AESCBCCryptor,
+    private discoveryManager: DiscoveryManager,
+  ) {
+    super();
+  }
 
   async getChats(): Promise<ChatStore[]> {
     let selector = this.db.chats;
@@ -17,9 +27,11 @@ export class ChatListStore {
         async (chat) =>
           new ChatStore(
             chat.id!,
+            chat.name,
             await this.cryptor.decrypt(chat.encryptedBlob, ChatBuf),
-          )
-      )
+            this.discoveryManager,
+          ),
+      ),
     );
   }
 
@@ -27,13 +39,13 @@ export class ChatListStore {
     const enc = new TextEncoder();
     const buf = new ChatBuf();
     buf.sharedSecret = enc.encode(sharedSecret);
-    buf.uuid = v5(buf.sharedSecret, "chat");
-
+    buf.uuid = v5(buf.sharedSecret, CHAT_NAMESPACE);
     const encrypted = await this.cryptor.encrypt(ChatBuf.encode(buf).finish());
 
-    return this.db.chats.add({
+    await this.db.chats.add({
       encryptedBlob: encrypted,
       name,
     });
+    this.emit("new chat");
   }
 }
