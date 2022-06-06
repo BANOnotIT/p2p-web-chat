@@ -1,5 +1,5 @@
 import { entries, events, fromEntries, genId } from "../utils/torrent";
-import {decrypt, encodeBytes, encrypt, genKey} from "../utils/crypto";
+import { decrypt, encodeBytes, encrypt, genKey } from "../utils/crypto";
 import Peer from "simple-peer-light";
 import { EventEmitter } from "events";
 
@@ -73,7 +73,7 @@ export class DiscoveryManager extends EventEmitter {
   private initPeer(
     initiator: boolean,
     trickle: boolean,
-    config?: RTCConfiguration
+    config?: RTCConfiguration,
   ) {
     return new Peer({ initiator, trickle, config });
   }
@@ -120,7 +120,7 @@ export class DiscoveryManager extends EventEmitter {
       // @ts-ignore
       announce.intervalId = setInterval(
         () => this.broadcastAnnouncement(msg.info_hash),
-        announce.intervalSec * 1000
+        announce.intervalSec * 1000,
       );
     }
 
@@ -144,11 +144,11 @@ export class DiscoveryManager extends EventEmitter {
             peer_id: this.selfId,
             to_peer_id: msg.peer_id,
             offer_id: msg.offer_id,
-          })
-        )
+          }),
+        ),
       );
       peer.on(events.connect, () =>
-        this.handlePeerConnection(peer, msg.info_hash, msg.peer_id)
+        this.handlePeerConnection(peer, msg.info_hash, msg.peer_id),
       );
       peer.on(events.close, () => this.handlePeerDisconnection(msg.peer_id));
       peer.signal({
@@ -175,7 +175,7 @@ export class DiscoveryManager extends EventEmitter {
 
         offer.acquired = true;
         peer.on(events.connect, () =>
-          this.handlePeerConnection(peer, msg.info_hash, msg.peer_id)
+          this.handlePeerConnection(peer, msg.info_hash, msg.peer_id),
         );
         peer.on(events.close, () => this.handlePeerDisconnection(msg.peer_id));
         peer.signal({
@@ -198,7 +198,7 @@ export class DiscoveryManager extends EventEmitter {
     peer: Peer.Instance,
     infoHash: string,
     peerId: string,
-    offerId?: string
+    offerId?: string,
   ) {
     this.connectedPeers.set(peerId, peer);
 
@@ -227,7 +227,7 @@ export class DiscoveryManager extends EventEmitter {
 
   async connectToTrackers() {
     return await Promise.all(
-      this.trackerUrls.map((url) => this.reconnectToTracker(url))
+      this.trackerUrls.map((url) => this.reconnectToTracker(url)),
     );
   }
 
@@ -242,6 +242,25 @@ export class DiscoveryManager extends EventEmitter {
     });
   }
 
+  async createAnnounce(seed: string): Promise<string> {
+    const infoHash = await this.generateInfoHash(seed);
+
+    this.announcements.set(infoHash, {
+      key: genKey(seed),
+      intervalSec: defaultAnnounceSecs,
+      offers: this.createOffers(),
+      // @ts-ignore
+      intervalId: setInterval(
+        () => this.broadcastAnnouncement(infoHash),
+        defaultAnnounceSecs * 1000,
+      ),
+    });
+
+    this.broadcastAnnouncement(infoHash);
+
+    return infoHash;
+  }
+
   private createOffers = () =>
     fromEntries(
       new Array(offerPoolSize).fill("").map(() => {
@@ -253,31 +272,12 @@ export class DiscoveryManager extends EventEmitter {
             peer,
             acquired: false,
             signalP: new Promise<Peer.SignalData>((done) =>
-              peer.once(events.signal, done)
+              peer.once(events.signal, done),
             ),
           },
         ];
-      })
+      }),
     );
-
-  async createAnnounce(seed: string): Promise<string> {
-    const infoHash = await this.generateInfoHash(seed);
-
-    this.announcements.set(infoHash, {
-      key: genKey(seed),
-      intervalSec: defaultAnnounceSecs,
-      offers: this.createOffers(),
-      // @ts-ignore
-      intervalId: setInterval(
-        () => this.broadcastAnnouncement(infoHash),
-        defaultAnnounceSecs * 1000
-      ),
-    });
-
-    this.broadcastAnnouncement(infoHash);
-
-    return infoHash;
-  }
 
   private async broadcastAnnouncement(infoHash: string) {
     const announce = this.announcements.get(infoHash);
@@ -306,11 +306,11 @@ export class DiscoveryManager extends EventEmitter {
                       sdp: await encrypt(announce.key, offer.sdp),
                     },
                   };
-                })
+                }),
             ),
-          })
+          }),
         );
-      })
+      }),
     );
   }
 
@@ -318,13 +318,13 @@ export class DiscoveryManager extends EventEmitter {
     return crypto.subtle
       .digest(
         "SHA-1",
-        encodeBytes(`${seed}:${libName}:${this.version}:${seed}`)
+        encodeBytes(`${seed}:${libName}:${this.version}:${seed}`),
       )
       .then((buffer): string =>
         Array.from(new Uint8Array(buffer))
           .map((b) => b.toString(36))
           .join("")
-          .slice(0, INFO_HASH_SIZE)
+          .slice(0, INFO_HASH_SIZE),
       );
   }
 }
