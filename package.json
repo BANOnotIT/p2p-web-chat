@@ -154,5 +154,8 @@
     "presets": [
       "react-app"
     ]
+  },
+  "prettier": {
+    "trailingComma": "all"
   }
 }
