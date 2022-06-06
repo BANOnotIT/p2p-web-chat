@@ -172,7 +172,7 @@ declare module "hypercore" {
     on(event: "close", cb: () => void);
   }
 
-  class Peer<T> {
+  class Peer {
     publicKey: Buffer;
   }
 
@@ -199,11 +199,11 @@ declare module "hypercore" {
   };
 
   function hypercore<T>(
-    store: AbstractRandomAccess | string,
-    options?: Partial<FabricOptions<T>>
+    store: ((filename: string) => AbstractRandomAccess) | string,
+    options?: Partial<FabricOptions<T>>,
   ): HyperCoreFeed<T>;
   function hypercore<T>(
-    store: AbstractRandomAccess | string,
+    store: ((filename: string) => AbstractRandomAccess) | string,
     key: Buffer,
     options?: Partial<FabricOptions<T>>,
   ): HyperCoreFeed<T>;

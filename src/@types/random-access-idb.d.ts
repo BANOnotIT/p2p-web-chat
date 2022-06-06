@@ -1,7 +1,7 @@
 declare module "random-access-idb" {
   import { AbstractRandomAccess } from "random-access-storage";
 
-  class IDBStore implements AbstractRandomAccess {
+  export interface IDBStore extends AbstractRandomAccess {
     constructor(
       opts?:
         | string
@@ -10,25 +10,9 @@ declare module "random-access-idb" {
             name: string;
             length: number;
             db: (db: IDBDatabase) => void;
-          }>
+          }>,
     );
   }
-
-  function storeFabric(opts: {
-    size?: number;
-    length?: number;
-    name: string;
-    db?: (db: IDBDatabase) => void;
-  }): IDBStore;
-  function storeFabric(
-    name: string,
-    opts?: Partial<{
-      size: number;
-      name: string;
-      length: number;
-      db: (db: IDBDatabase) => void;
-    }>
-  ): IDBStore;
 
   function databaseFabric(
     dbname: string,
@@ -36,8 +20,16 @@ declare module "random-access-idb" {
       size: number;
       name: string;
       length: number;
-    }>
-  ): storeFabric;
+    }>,
+  ): (
+    filename?: string,
+    options?: {
+      size?: number;
+      length?: number;
+      name: string;
+      db?: (db: IDBDatabase) => void;
+    },
+  ) => IDBStore;
 
   export default databaseFabric;
 }
