@@ -1,4 +1,4 @@
-import { EncryptedEntry } from "../protobuf/EncryptedEntry.buf";
+import { EncryptedEntryBuf } from "../protobuf/EncryptedEntry.buf";
 import { Constructor, Message } from "protobufjs/light";
 
 const enc = new TextEncoder();
@@ -34,9 +34,13 @@ export class AESCBCCryptor {
   }
 
   async encrypt(inp: Uint8Array): Promise<Uint8Array> {
+    const entry = this.encryptToEntry(inp);
+    return EncryptedEntryBuf.encode(entry).finish();
+  }
+  async encryptToEntry(inp: Uint8Array): Promise<EncryptedEntryBuf> {
     const iv = crypto.getRandomValues(new Uint8Array(16));
 
-    const entry = new EncryptedEntry();
+    const entry = new EncryptedEntryBuf();
     entry.cbcIV = iv;
     entry.cbcEncrypted = await crypto.subtle.encrypt(
       { name: AESCBCCryptor.algo, iv },
@@ -44,12 +48,19 @@ export class AESCBCCryptor {
       inp
     );
 
-    return EncryptedEntry.encode(entry).finish();
+    return entry;
   }
 
   async decrypt<T extends Message>(inp: Uint8Array, decoder: Constructor<T>) {
-    const entry = EncryptedEntry.decode(inp);
+    const entry = EncryptedEntryBuf.decode(inp);
 
+    return this.decryptFromEntry(entry, decoder);
+  }
+
+  async decryptFromEntry<T extends Message>(
+    entry: EncryptedEntryBuf,
+    decoder: Constructor<T>
+  ) {
     const plain = await crypto.subtle.decrypt(
       { name: AESCBCCryptor.algo, iv: entry.cbcIV },
       await this.key,
