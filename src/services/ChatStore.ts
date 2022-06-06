@@ -24,10 +24,10 @@ export class ChatStore {
   ) {
     this.cryptor = AESCBCCryptor.fromU8Array(insides.sharedSecret);
 
-    const myStore = messagesRandomAccessDB(`chat-messages-${insides.uuid}:my`);
-    const theirStore = messagesRandomAccessDB(
-      `chat-messages-${insides.uuid}:their`,
-    );
+    const myStore = (filename: string) =>
+      messagesRandomAccessDB(`chat-messages-${insides.uuid}:my-${filename}`);
+    const theirStore = (filename: string) =>
+      messagesRandomAccessDB(`chat-messages-${insides.uuid}:their-${filename}`);
 
     this.myMessagesCore = hypercore(myStore);
     this.theirMessagesCore = hypercore(theirStore);
