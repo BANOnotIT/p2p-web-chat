@@ -26,26 +26,29 @@ export class AESCBCCryptor {
         keyMaterial,
         { name: "AES-CBC", length: 256 },
         true,
-        ["encrypt", "decrypt"]
-      )
+        ["encrypt", "decrypt"],
+      ),
     );
 
     return new AESCBCCryptor(rootKey);
   }
 
   async encrypt(inp: Uint8Array): Promise<Uint8Array> {
-    const entry = this.encryptToEntry(inp);
+    const entry = await this.encryptToEntry(inp);
     return EncryptedEntryBuf.encode(entry).finish();
   }
+
   async encryptToEntry(inp: Uint8Array): Promise<EncryptedEntryBuf> {
     const iv = crypto.getRandomValues(new Uint8Array(16));
 
     const entry = new EncryptedEntryBuf();
     entry.cbcIV = iv;
-    entry.cbcEncrypted = await crypto.subtle.encrypt(
-      { name: AESCBCCryptor.algo, iv },
-      await this.key,
-      inp
+    entry.cbcEncrypted = new Uint8Array(
+      (await crypto.subtle.encrypt(
+        { name: AESCBCCryptor.algo, iv },
+        await this.key,
+        inp,
+      )) as ArrayBuffer,
     );
 
     return entry;
@@ -59,12 +62,14 @@ export class AESCBCCryptor {
 
   async decryptFromEntry<T extends Message>(
     entry: EncryptedEntryBuf,
-    decoder: Constructor<T>
+    decoder: Constructor<T>,
   ) {
-    const plain = await crypto.subtle.decrypt(
-      { name: AESCBCCryptor.algo, iv: entry.cbcIV },
-      await this.key,
-      entry.cbcEncrypted
+    const plain = new Uint8Array(
+      await crypto.subtle.decrypt(
+        { name: AESCBCCryptor.algo, iv: entry.cbcIV },
+        await this.key,
+        entry.cbcEncrypted,
+      ),
     );
 
     return Message.decode.call(decoder, plain) as unknown as T;
