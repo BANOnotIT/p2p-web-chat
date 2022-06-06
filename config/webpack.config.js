@@ -338,6 +338,7 @@ module.exports = function (webpackEnv) {
       ],
       fallback: {
         buffer: require.resolve("buffer/"),
+        stream: require.resolve("stream-browserify"),
       },
     },
     module: {
@@ -754,6 +755,7 @@ module.exports = function (webpackEnv) {
 
       new webpack.ProvidePlugin({
         Buffer: ["buffer", "Buffer"],
+        process: "process/browser.js",
       }),
     ].filter(Boolean),
     // Turn off performance processing because we utilize
