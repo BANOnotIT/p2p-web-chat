@@ -1,37 +1,44 @@
-import { ChatDatabase, ChatEntity } from "./ChatDatabase";
+import { ChatEntity, messagesRandomAccessDB } from "./ChatDatabase";
 import { AESCBCCryptor } from "./AESCBCCryptor";
 import { ChatBuf } from "../protobuf/Chat.buf";
 import { UserMessageBuf } from "../protobuf/UserMessage.buf";
+import hypercore, { HyperCoreFeed } from "hypercore";
 
 export class ChatStore {
   private cryptor: AESCBCCryptor;
+  private myMessagesCore: HyperCoreFeed<Buffer>;
+  private theirMessagesCore: HyperCoreFeed<Buffer>;
 
   constructor(
     private chatId: NonNullable<ChatEntity["id"]>,
-    private insides: ChatBuf,
-    private db: ChatDatabase
+    private insides: ChatBuf
   ) {
     this.cryptor = AESCBCCryptor.fromU8Array(insides.sharedSecret);
+
+    const myStore = messagesRandomAccessDB(`chat-messages-${insides.uuid}:my`);
+    const theirStore = messagesRandomAccessDB(
+      `chat-messages-${insides.uuid}:their`
+    );
+
+    this.myMessagesCore = hypercore(myStore);
+    this.theirMessagesCore = hypercore(theirStore);
   }
 
   async getMessages(): Promise<UserMessageBuf[]> {
-    const selector = this.db.messages;
-
-    const result = await selector.toArray();
-
-    return Promise.all(
-      result.map((msg) => this.decryptMessage(msg.encryptedBlob))
-    );
+    return [];
   }
 
-  async saveMessage(msg: UserMessageBuf) {
+  async sendMessage(msg: UserMessageBuf) {
     const encryptedBlob = await this.encryptMessage(msg);
 
-    this.db.messages.add({
-      chat: this.chatId,
-      encryptedBlob,
-      nonce: msg.nonce,
-      timestamp: msg.timestamp,
+    return new Promise((done, error) => {
+      this.myMessagesCore.append(
+        Buffer.from(encryptedBlob),
+        (err: null | Error) => {
+          if (err) return error(err);
+          done(encryptedBlob);
+        }
+      );
     });
   }
 

@@ -1,4 +1,5 @@
 import Dexie from "dexie";
+import randomAccess from "random-access-idb";
 
 export interface ChatMessageEntity {
   readonly id?: number;
@@ -16,13 +17,12 @@ export interface ChatEntity {
 
 export class ChatDatabase extends Dexie {
   chats!: Dexie.Table<ChatEntity, number>;
-  messages!: Dexie.Table<ChatMessageEntity, number>;
 
   constructor() {
     super("p2pChatDatabase");
     this.version(1).stores({
-      messages: "++id, &nonce, timestamp, chat",
       chats: "++id",
     });
   }
 }
+export const messagesRandomAccessDB = randomAccess("messagesDatabase");

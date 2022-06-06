@@ -18,7 +18,6 @@ export class ChatListStore {
           new ChatStore(
             chat.id!,
             await this.cryptor.decrypt(chat.encryptedBlob, ChatBuf),
-            this.db
           )
       )
     );
