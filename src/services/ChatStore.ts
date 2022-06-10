@@ -2,16 +2,14 @@ import { ChatEntity, messagesRandomAccessDB } from "./ChatDatabase";
 import { AESCBCCryptor } from "./AESCBCCryptor";
 import { ChatBuf } from "../protobuf/Chat.buf";
 import { UserMessageBuf } from "../protobuf/UserMessage.buf";
-import hypercore, { HyperCoreFeed } from "hypercore";
 import { DiscoveryManager } from "./DiscoveryManager";
 import { HypercoreSynchronize } from "./HypercoreSynchronize";
 import Peer from "simple-peer";
 import { promisify } from "bluebird";
+import EventEmitter from "events";
 
-export class ChatStore {
+export class ChatStore extends EventEmitter {
   private cryptor: AESCBCCryptor;
-  private myMessagesCore: HyperCoreFeed<Buffer>;
-  private theirMessagesCore: HyperCoreFeed<Buffer>;
 
   private myMessagesSynchronize: HypercoreSynchronize;
   private theirMessagesSynchronize: HypercoreSynchronize;
@@ -24,6 +22,7 @@ export class ChatStore {
     private insides: ChatBuf,
     private discoveryMgr: DiscoveryManager,
   ) {
+    super();
     this.cryptor = AESCBCCryptor.fromU8Array(insides.sharedSecret);
 
     const myStore = (filename: string) =>
@@ -31,17 +30,15 @@ export class ChatStore {
     const theirStore = (filename: string) =>
       messagesRandomAccessDB(`chat-messages-${insides.uuid}:their-${filename}`);
 
-    this.myMessagesCore = hypercore(myStore);
-    this.theirMessagesCore = hypercore(theirStore);
-
     this.myMessagesSynchronize = new HypercoreSynchronize(
-      this.myMessagesCore,
+      myStore,
       "chat-messages",
       true,
       this.discoveryMgr.selfId,
     );
+
     this.theirMessagesSynchronize = new HypercoreSynchronize(
-      this.theirMessagesCore,
+      theirStore,
       "chat-messages",
       false,
       this.discoveryMgr.selfId,
@@ -52,6 +49,10 @@ export class ChatStore {
 
   destroy() {
     this.discoveryMgr.off("peer connected", this.peerConnectedListener);
+    if (this.chatInfoHash) this.discoveryMgr.stopAnnouncing(this.chatInfoHash);
+
+    this.theirMessagesSynchronize.stopAllPeers();
+    this.myMessagesSynchronize.stopAllPeers();
   }
 
   get uuid() {
@@ -63,21 +64,40 @@ export class ChatStore {
   }
 
   async connectToPeers() {
+    await this.myMessagesSynchronize.initializeCore();
+    await this.discoveryMgr.connectToTrackers();
     this.chatInfoHash = await this.discoveryMgr.createAnnounce(
       this.insides.sharedSecret.toString(),
     );
   }
 
   async getMessages(): Promise<UserMessageBuf[]> {
-    if (this.myMessagesCore.length === 0) {
+    if (
+      !this.myMessagesSynchronize.core ||
+      this.myMessagesSynchronize.core?.length === 0 ||
+      !this.myMessagesSynchronize.core?.readable
+    ) {
       return [];
     }
 
-    const messages = (await promisify(this.myMessagesCore.getBatch).call(
-      this.myMessagesCore,
+    let messages = (await promisify(
+      this.myMessagesSynchronize.core.getBatch,
+    ).call(
+      this.myMessagesSynchronize.core,
       0,
-      this.myMessagesCore.length,
+      this.myMessagesSynchronize.core.length,
     )) as Buffer[];
+
+    if (this.theirMessagesSynchronize.core) {
+      console.log(this.theirMessagesSynchronize.core.length);
+      messages.push(
+        ...((await promisify(this.theirMessagesSynchronize.core.getBatch).call(
+          this.theirMessagesSynchronize.core,
+          0,
+          this.theirMessagesSynchronize.core.length,
+        )) as Buffer[]),
+      );
+    }
 
     return Promise.all(
       messages?.map((message) => this.decryptMessage(Uint8Array.from(message))),
@@ -88,7 +108,7 @@ export class ChatStore {
     const encryptedBlob = await this.encryptMessage(msg);
 
     return new Promise((done, error) => {
-      this.myMessagesCore.append(
+      this.myMessagesSynchronize.core!.append(
         Buffer.from(encryptedBlob),
         (err: null | Error) => {
           if (err) return error(err);
@@ -118,7 +138,7 @@ export class ChatStore {
   }) => {
     if (infoHash === this.chatInfoHash) {
       this.myMessagesSynchronize.registerRTCPeer(peer, peerId);
-      this.theirMessagesSynchronize.registerRTCPeer(peer, peerId);
+      this.theirMessagesSynchronize?.registerRTCPeer(peer, peerId);
     }
   };
 }
