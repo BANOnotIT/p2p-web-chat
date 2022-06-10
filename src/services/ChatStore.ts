@@ -3,7 +3,10 @@ import { AESCBCCryptor } from "./AESCBCCryptor";
 import { ChatBuf } from "../protobuf/Chat.buf";
 import { UserMessageBuf } from "../protobuf/UserMessage.buf";
 import { DiscoveryManager } from "./DiscoveryManager";
-import { HypercoreSynchronize } from "./HypercoreSynchronize";
+import {
+  HypercoreSynchronize,
+  HyperCoreSyncStatus,
+} from "./HypercoreSynchronize";
 import Peer from "simple-peer";
 import { promisify } from "bluebird";
 import EventEmitter from "events";
@@ -45,8 +48,26 @@ export class ChatStore extends EventEmitter {
     );
 
     this.discoveryMgr.on("peer connected", this.peerConnectedListener);
+    this.myMessagesSynchronize.on("status-change", () => {
+      this.emit("online-change", this.onlineStatus);
+    });
+    this.theirMessagesSynchronize.on("status-change", () =>
+      this.emit("online-change", this.onlineStatus),
+    );
+
+    this.on("online-change", () => {
+      console.log("Online status: ", HyperCoreSyncStatus[this.onlineStatus]);
+    });
   }
 
+  get onlineStatus(): HyperCoreSyncStatus {
+    const statuses = [
+      this.myMessagesSynchronize.status,
+      this.theirMessagesSynchronize.status,
+    ] as number[];
+
+    return Math.min(...statuses) as HyperCoreSyncStatus;
+  }
   destroy() {
     this.discoveryMgr.off("peer connected", this.peerConnectedListener);
     if (this.chatInfoHash) this.discoveryMgr.stopAnnouncing(this.chatInfoHash);
