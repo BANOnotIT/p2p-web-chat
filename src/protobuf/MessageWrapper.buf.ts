@@ -3,6 +3,7 @@ import { Field, Message, Type } from "protobufjs/light";
 export enum Channel {
   system = 0,
   userMessage = 1,
+  hyperCorePublicKey = 2,
 }
 
 @Type.d("MessageWrapper")
