@@ -165,17 +165,38 @@ declare module "hypercore" {
       },
     ): T;
 
-    on(event: "ready", cb: () => void);
+    on(event: "ready" | "append" | "sync" | "close", cb: () => void);
     on(event: "error", cb: (err: Error) => void);
-    on(event: "download", cb: (index: number, data: T) => void);
-    on(event: "upload", cb: (index: number, data: T) => void);
-    on(event: "append", cb: () => void);
-    on(event: "sync", cb: () => void);
-    on(event: "close", cb: () => void);
+    on(event: "download" | "upload", cb: (index: number, data: T) => void);
+
+    once(event: "ready" | "append" | "sync" | "close", cb: () => void);
+    once(event: "error", cb: (err: Error) => void);
+    once(event: "download" | "upload", cb: (index: number, data: T) => void);
   }
 
-  class Peer {
+  export class Peer {
     publicKey: Buffer;
+    sparse: boolean;
+    live: boolean;
+
+    remoteOpened: boolean;
+    remoteLength: number;
+    remoteAck: boolean;
+    remoteUploading: boolean;
+    remoteDownloading: boolean;
+    remoteWant: boolean;
+    // TODO find out
+    remoteTree: unknown;
+    remotePublicKey: Buffer;
+    // TODO find out
+    remoteAddress?: unknown;
+    remoteType: string;
+
+    uploading: boolean;
+    downloading: boolean;
+    updated: boolean;
+
+    urgentRequests: number;
   }
 
   type PublicCallback<T = undefined> =
