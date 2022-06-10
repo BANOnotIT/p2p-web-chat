@@ -70,7 +70,8 @@ export class HypercoreSynchronize
       console.log("got public key");
     }
 
-    this.setupReplication(peer, channelIdx);
+    await this.setupLighthouse(peer, channelIdx);
+    await this.setupReplication(peer, channelIdx);
   }
 
   private async askCorePublicKey(
@@ -114,20 +115,7 @@ export class HypercoreSynchronize
         "Replication setup called before hypercore was initialized",
       );
 
-    this.peers.add(peer);
-
-    const publicKeyLighthouse = new PublicKeyLighthouse(
-      new Uint8Array(this.core.key),
-      15_000,
-    );
-    publicKeyLighthouse
-      .pipe(new WrapMessage(Channel.hyperCorePublicKey, channelId))
-      .pipe(peer);
-    peer.once("close", () => {
-      publicKeyLighthouse.destroy();
-    });
-
-    let syncStream = this.core.replicate(this.isProducer, {
+    const syncStream = this.core.replicate(this.isProducer, {
       live: true,
       timeout: 0,
       encrypted: false,
@@ -145,6 +133,25 @@ export class HypercoreSynchronize
       .pipe(syncStream);
 
     console.log("replication started", this);
+  }
+
+  private setupLighthouse(peer: SimplePeer.Instance, channelId: number) {
+    if (!this.core)
+      throw new Error(
+        "Lighthouse setup called before hypercore was initialized",
+      );
+
+    const publicKeyLighthouse = new PublicKeyLighthouse(
+      new Uint8Array(this.core.key),
+      15_000,
+    );
+    publicKeyLighthouse
+      .pipe(new WrapMessage(Channel.hyperCorePublicKey, channelId))
+      .pipe(peer);
+
+    peer.once("close", () => {
+      publicKeyLighthouse.destroy();
+    });
   }
 }
 
