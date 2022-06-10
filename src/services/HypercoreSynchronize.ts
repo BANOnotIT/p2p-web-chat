@@ -1,12 +1,18 @@
 import SimplePeer from "simple-peer";
 import hypercore, { HyperCoreFeed, Peer } from "hypercore";
 import { crc32 } from "crc";
-import { Channel, MessageWrapperBuf } from "../protobuf/MessageWrapper.buf";
-import { Readable, Transform, Writable } from "readable-stream";
+import { Channel } from "../protobuf/MessageWrapper.buf";
 import EventEmitter from "events";
 import { AbstractRandomAccess } from "random-access-storage";
 import { promisify } from "bluebird";
 import { Emitter } from "../utils/eventemitter";
+import {
+  BinaryTransformer,
+  MessageLighthouse,
+  MessageResolver,
+  UnwrapAndFilterMessage,
+  WrapMessage,
+} from "../utils/stream";
 
 export enum HyperCoreSyncStatus {
   notInitialized,
@@ -74,8 +80,11 @@ export class HypercoreSynchronize
     peer: SimplePeer.Instance,
     channelIdx: number,
   ): Promise<Uint8Array> {
-    const acquirer = new PublicKeyAcquirer();
-    let filter = new FilterAndUnwrap(Channel.hyperCorePublicKey, channelIdx);
+    const acquirer = new MessageResolver();
+    let filter = new UnwrapAndFilterMessage(
+      Channel.hyperCorePublicKey,
+      channelIdx,
+    );
 
     peer.pipe(filter).pipe(acquirer);
 
@@ -127,11 +136,11 @@ export class HypercoreSynchronize
     });
 
     syncStream
-      .pipe(new BufferToUint8Array())
+      .pipe(BinaryTransformer.bufferToUint8Array())
       .pipe(new WrapMessage(Channel.userMessage, channelId))
       .pipe(peer)
-      .pipe(new FilterAndUnwrap(Channel.userMessage, channelId))
-      .pipe(new Uint8ArrayToBuffer())
+      .pipe(new UnwrapAndFilterMessage(Channel.userMessage, channelId))
+      .pipe(BinaryTransformer.uint8ArrayToBuffer())
       .pipe(syncStream);
 
     console.debug("replication started", this);
@@ -143,7 +152,7 @@ export class HypercoreSynchronize
         "Lighthouse setup called before hypercore was initialized",
       );
 
-    const publicKeyLighthouse = new PublicKeyLighthouse(
+    const publicKeyLighthouse = new MessageLighthouse(
       new Uint8Array(this.core.key),
       15_000,
     );
@@ -154,133 +163,5 @@ export class HypercoreSynchronize
     peer.once("close", () => {
       publicKeyLighthouse.destroy();
     });
-  }
-}
-
-class WrapMessage extends Transform {
-  constructor(private channel: Channel, private channelIdx: number) {
-    super();
-  }
-
-  _transform(
-    chunk: Uint8Array,
-    encoding: BufferEncoding,
-    callback: (err?: null | Error, data?: any) => void,
-  ) {
-    const wrapped = new MessageWrapperBuf();
-    wrapped.idx = this.channelIdx;
-    wrapped.channel = this.channel;
-    wrapped.message = chunk;
-
-    const wrappedBuffer = MessageWrapperBuf.encode(wrapped).finish();
-    this.push(wrappedBuffer);
-
-    callback(null);
-  }
-}
-
-class FilterAndUnwrap extends Transform {
-  constructor(private channel: Channel, private channelIdx: number) {
-    super();
-  }
-
-  _transform(
-    chunk: Uint8Array,
-    encoding: BufferEncoding,
-    callback: (err?: null | Error, data?: any) => void,
-  ) {
-    const unwrapped = MessageWrapperBuf.decode(chunk);
-    if (unwrapped.idx === this.channelIdx && unwrapped.channel === this.channel)
-      this.push(unwrapped.message);
-
-    callback();
-  }
-}
-
-class Uint8ArrayToBuffer extends Transform {
-  _transform(
-    chunk: Uint8Array,
-    encoding: BufferEncoding,
-    callback: (err?: null | Error, data?: any) => void,
-  ) {
-    this.push(Buffer.from(chunk));
-    callback();
-  }
-}
-class BufferToUint8Array extends Transform {
-  _transform(
-    chunk: Buffer,
-    encoding: BufferEncoding,
-    callback: (err?: null | Error, data?: any) => void,
-  ) {
-    this.push(Uint8Array.from(chunk));
-    callback();
-  }
-}
-
-class LogBuffer extends Transform {
-  constructor(private prefix = "") {
-    super();
-  }
-
-  _transform(
-    chunk: Buffer,
-    encoding: BufferEncoding,
-    callback: (err?: null | Error, data?: any) => void,
-  ) {
-    this.push(chunk);
-    console.info(this.prefix, chunk.toString("hex"));
-    callback();
-  }
-}
-
-class PublicKeyAcquirer extends Writable {
-  private resolver!: (value: Uint8Array | PromiseLike<Uint8Array>) => void;
-  readonly promise;
-
-  constructor() {
-    super();
-    this.promise = new Promise<Uint8Array>((done) => (this.resolver = done));
-  }
-
-  _write(
-    chunk: Uint8Array,
-    _encoding: string,
-    callback: (error?: Error | null) => void,
-  ) {
-    this.resolver(chunk);
-    callback();
-  }
-}
-
-class PublicKeyLighthouse extends Readable {
-  private interval: null | number = null;
-
-  constructor(private publicKey: Uint8Array, private period: number) {
-    super();
-  }
-
-  sendPublicKey = () => {
-    this.push(this.publicKey);
-  };
-
-  _read() {
-    if (this.interval === null) {
-      this.sendPublicKey();
-
-      // TODO tell to typescript we're not in node.js
-      this.interval = setInterval(
-        this.sendPublicKey,
-        this.period,
-      ) as unknown as number;
-    }
-  }
-
-  _destroy(error: Error | null, callback: (error?: Error | null) => void) {
-    super._destroy(error, callback);
-
-    if (this.interval !== null) clearInterval(this.interval);
-
-    callback();
   }
 }
