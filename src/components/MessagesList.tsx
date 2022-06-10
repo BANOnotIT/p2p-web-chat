@@ -1,6 +1,6 @@
 import { ChatStore } from "../services/ChatStore";
 import { UserMessageBuf } from "../protobuf/UserMessage.buf";
-import { useCallback, useEffect, useState } from "react";
+import { SyntheticEvent, useCallback, useEffect, useState } from "react";
 import { Button, Input } from "@chakra-ui/react";
 import { genId } from "../utils/torrent";
 
@@ -16,17 +16,32 @@ export const MessagesList = (props: Props) => {
     props.chat.getMessages().then(setMessages);
   }, [props.chat]);
 
-  const handleSending = useCallback(() => {
-    const msg = new UserMessageBuf();
-    msg.text = messageText;
-    msg.sender = "me";
-    msg.nonce = genId(20);
-    msg.padding = genId(Math.max(0, 100 - messageText.length));
-    msg.senderTimestamp = Date.now();
+  const handleSending = useCallback(
+    (event?: SyntheticEvent) => {
+      event?.preventDefault();
 
-    void props.chat.sendMessage(msg);
-    setMessageText("");
-  }, [messageText, props.chat]);
+      if (!messageText) return;
+
+      const msg = new UserMessageBuf();
+      msg.text = messageText;
+      msg.sender = "me";
+      msg.nonce = genId(20);
+      msg.padding = genId(Math.max(0, 100 - messageText.length));
+      msg.senderTimestamp = Date.now();
+
+      void props.chat.sendMessage(msg);
+      setMessageText("");
+    },
+    [messageText, props.chat],
+  );
+
+  useEffect(() => {
+    props.chat.connectToPeers();
+
+    return () => {
+      props.chat.destroy();
+    };
+  }, [props.chat]);
 
   return (
     <div>
@@ -36,7 +51,7 @@ export const MessagesList = (props: Props) => {
         </div>
       ))}
 
-      <form>
+      <form onSubmit={handleSending}>
         <Input
           value={messageText}
           onChange={(event) => setMessageText(event.currentTarget.value)}
