@@ -17,7 +17,7 @@ export const ChatListContext = createContext<null | ChatListStore>(null);
 type Props = { children: ReactNode };
 export const ChatListStoreProvider = (props: Props) => {
   const [store, setStore] = useState<null | ChatListStore>(null);
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("123456");
   const discoveryManager = useMemo(
     () => new DiscoveryManager({ appId: "tester" }),
     [],
@@ -73,6 +73,7 @@ export const ChatListStoreProvider = (props: Props) => {
     <form onSubmit={handlePasswordSend}>
       <Input
         type={"password"}
+        autoComplete={"current-password new-password"}
         value={password}
         onChange={(e) => setPassword(e.currentTarget.value)}
       />
