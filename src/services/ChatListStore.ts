@@ -17,21 +17,21 @@ export class ChatListStore extends EventEmitter {
     super();
   }
 
-  async getChats(): Promise<ChatStore[]> {
+  getChatStore(chat: { buf: ChatBuf; id: number; name: string }) {
+    return new ChatStore(chat.id!, chat.name, chat.buf, this.discoveryManager);
+  }
+
+  async getChats(): Promise<Array<{ buf: ChatBuf; id: number; name: string }>> {
     let selector = this.db.chats;
 
     const results = await selector.toArray();
 
     return Promise.all(
-      results.map(
-        async (chat) =>
-          new ChatStore(
-            chat.id!,
-            chat.name,
-            await this.cryptor.decrypt(chat.encryptedBlob, ChatBuf),
-            this.discoveryManager,
-          ),
-      ),
+      results.map(async (chat) => ({
+        ...chat,
+        id: chat.id!,
+        buf: await this.cryptor.decrypt(chat.encryptedBlob, ChatBuf),
+      })),
     );
   }
 

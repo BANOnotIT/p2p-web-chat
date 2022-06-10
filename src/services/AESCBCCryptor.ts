@@ -10,7 +10,7 @@ export class AESCBCCryptor {
   private static algo = "AES-CBC";
 
   static fromU8Array(array: Uint8Array) {
-    const keyMaterialP = crypto.subtle.importKey("raw", array, "PBKDF2", true, [
+    const keyMaterialP = crypto.subtle.importKey("raw", array, "PBKDF2", false, [
       "deriveBits",
       "deriveKey",
     ]);

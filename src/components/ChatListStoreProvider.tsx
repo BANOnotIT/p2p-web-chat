@@ -32,7 +32,7 @@ export const ChatListStoreProvider = (props: Props) => {
         "raw",
         enc.encode(password),
         "PBKDF2",
-        true,
+        false,
         ["deriveBits", "deriveKey"],
       );
 
