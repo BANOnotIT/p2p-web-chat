@@ -1,14 +1,28 @@
-import Peer from "simple-peer";
-import hypercore, { HyperCoreFeed } from "hypercore";
+import SimplePeer from "simple-peer";
+import hypercore, { HyperCoreFeed, Peer } from "hypercore";
 import { crc32 } from "crc";
 import { Channel, MessageWrapperBuf } from "../protobuf/MessageWrapper.buf";
 import { Readable, Transform, Writable } from "readable-stream";
 import EventEmitter from "events";
 import { AbstractRandomAccess } from "random-access-storage";
 import { promisify } from "bluebird";
+import { Emitter } from "../utils/eventemitter";
 
-export class HypercoreSynchronize extends EventEmitter {
-  core: null | HyperCoreFeed<Buffer> = null;
+export enum HyperCoreSyncStatus {
+  notInitialized,
+  initializing,
+  connecting,
+  online,
+}
+
+export class HypercoreSynchronize
+  extends EventEmitter
+  implements
+    Emitter<{
+      "status-change": HyperCoreSyncStatus;
+    }>
+{
+  public core: null | HyperCoreFeed<Buffer> = null;
 
   constructor(
     private store: (filename: string) => AbstractRandomAccess,
@@ -19,7 +33,18 @@ export class HypercoreSynchronize extends EventEmitter {
     super();
   }
 
-  private peers = new Set<Peer.Instance>();
+  private peers = new Map<Peer, SimplePeer.Instance>();
+
+  get status(): HyperCoreSyncStatus {
+    if (!this.core) return HyperCoreSyncStatus.notInitialized;
+
+    if (this.core.peers.every((peer) => peer.remoteOpened))
+      return HyperCoreSyncStatus.online;
+
+    if (this.core.peers.length !== 0) return HyperCoreSyncStatus.connecting;
+
+    return HyperCoreSyncStatus.initializing;
+  }
 
   stopAllPeers() {
     this.peers.forEach((peer) => {
@@ -27,7 +52,7 @@ export class HypercoreSynchronize extends EventEmitter {
     });
   }
 
-  async registerRTCPeer(peer: Peer.Instance, peerId: string) {
+  async registerRTCPeer(peer: SimplePeer.Instance, peerId: string) {
     const direction = [this.myId, peerId];
     const channelIdx = crc32(
       `${this.storeCanonicalName}:${
@@ -49,7 +74,7 @@ export class HypercoreSynchronize extends EventEmitter {
   }
 
   private async askCorePublicKey(
-    peer: Peer.Instance,
+    peer: SimplePeer.Instance,
     channelIdx: number,
   ): Promise<Uint8Array> {
     const acquirer = new PublicKeyAcquirer();
@@ -76,10 +101,14 @@ export class HypercoreSynchronize extends EventEmitter {
       ? hypercore(this.store, Buffer.from(publicKey), { sparse: false })
       : hypercore(this.store, { sparse: false });
 
+    this.core.on("peer-add", () => this.emit("status-change", this.status));
+    this.core.on("peer-open", () => this.emit("status-change", this.status));
+    this.core.on("peer-remove", () => this.emit("status-change", this.status));
+
     return new Promise((done) => this.core!.once("ready", () => done(true)));
   }
 
-  private setupReplication(peer: Peer.Instance, channelId: number) {
+  private async setupReplication(peer: SimplePeer.Instance, channelId: number) {
     if (!this.core)
       throw new Error(
         "Replication setup called before hypercore was initialized",
