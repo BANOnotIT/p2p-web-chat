@@ -19,7 +19,28 @@ export const ChatListStoreProvider = (props: Props) => {
   const [store, setStore] = useState<null | ChatListStore>(null);
   const [password, setPassword] = useState("123456");
   const discoveryManager = useMemo(
-    () => new DiscoveryManager({ appId: "tester" }),
+    () =>
+      new DiscoveryManager({
+        appId: "tester",
+        rtcConfig: {
+          iceServers: [
+            // {
+            //   urls: "turn:openrelay.metered.ca:80",
+            //   username: "openrelayproject",
+            //   credential: "openrelayproject",
+            // },
+            {
+              urls: [
+                "stun:stun.nextcloud.com:443",
+                // "stun:stun1.l.google.com:19302",
+                // "stun:stun2.l.google.com:19302",
+                // "stun:stun3.l.google.com:19302",
+                // "stun:stun4.l.google.com:19302",
+              ],
+            },
+          ],
+        },
+      }),
     [],
   );
 
