@@ -21,11 +21,15 @@ import {
 } from "@chakra-ui/react";
 import { genId } from "../utils/torrent";
 import { MessagesList } from "./MessagesList";
+import { ChatBuf } from "../protobuf/Chat.buf";
 
 export const ChatLayout = () => {
-  const [chats, setChats] = useState<Array<ChatStore>>([]);
+  const [chats, setChats] = useState<
+    Array<{ id: number; name: string; buf: ChatBuf }>
+  >([]);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedChatIndex, setSelectedChatIndex] = useState(0);
+  const [chatStore, setChatStore] = useState<null | ChatStore>(null);
 
   const chatList = useContext(ChatListContext);
 
@@ -52,16 +56,27 @@ export const ChatLayout = () => {
   }, []);
   const createChat = useCallback(() => {
     chatList?.createChat(newChatName, externalSecret);
-  }, [chatList, externalSecret, newChatName]);
+    onClose();
+    setExternalSecret("");
+    setNewChatName("");
+  }, [chatList, externalSecret, newChatName, onClose]);
+
+  useEffect(() => {
+    let chat = chats[selectedChatIndex];
+    if (!chatList || !chat) return;
+    setChatStore(chatList.getChatStore(chat));
+  }, [chatList, chats, selectedChatIndex]);
 
   return (
     <>
       <Box display={"flex"}>
-        <Box width={"30ch"}>
+        <Box width={"30ch"} display={"flex"} flexDir={"column"}>
           <Button
             onClick={onOpen}
             disabled={chatList === null}
             colorScheme={"green"}
+            my={2}
+            mx={1}
           >
             Create Chat
           </Button>
@@ -71,9 +86,7 @@ export const ChatLayout = () => {
             onSelect={setSelectedChatIndex}
           />
         </Box>
-        {chats[selectedChatIndex] && (
-          <MessagesList chat={chats[selectedChatIndex]} />
-        )}
+        {chatStore && <MessagesList chat={chatStore} key={chatStore.uuid} />}
       </Box>
 
       <Modal isOpen={isOpen} onClose={onClose}>

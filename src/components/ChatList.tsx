@@ -1,9 +1,9 @@
-import { ChatStore } from "../services/ChatStore";
 import { Box, Text } from "@chakra-ui/react";
 import { SyntheticEvent, useCallback } from "react";
+import { ChatBuf } from "../protobuf/Chat.buf";
 
 type Props = {
-  chats: ChatStore[];
+  chats: Array<{ id: number; name: string; buf: ChatBuf }>;
   selected: number;
   onSelect: (index: number) => void;
 };
@@ -19,21 +19,22 @@ export const ChatList = (props: Props) => {
   );
 
   return (
-    <div>
+    <>
       {props.chats.map((chat, i) => (
         <Box
-          key={chat.uuid}
+          key={chat.id}
           data-index={i}
           bgColor={i === props.selected ? "blue.200" : ""}
           onClick={handleSelect}
           cursor={"pointer"}
+          p={2}
         >
           <Text fontSize={"xl"}>{chat.name}</Text>
           <Text color={"gray.500"}>
-            secret: {new TextDecoder().decode(chat.sharedSecret)}
+            secret: {new TextDecoder().decode(chat.buf.sharedSecret)}
           </Text>
         </Box>
       ))}
-    </div>
+    </>
   );
 };
