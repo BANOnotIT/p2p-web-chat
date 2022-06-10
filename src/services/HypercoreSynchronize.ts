@@ -60,14 +60,10 @@ export class HypercoreSynchronize
       }`,
     );
 
-    console.log("trying to setup sync channel", channelIdx);
-
     const alreadySetUp = await this.initializeCore();
     if (!alreadySetUp) {
-      console.log("getting public key for", channelIdx);
       const publicKey = await this.askCorePublicKey(peer, channelIdx);
       await this.initializeCore(publicKey);
-      console.log("got public key");
     }
 
     await this.setupLighthouse(peer, channelIdx);
@@ -125,22 +121,20 @@ export class HypercoreSynchronize
     syncStream.once("error", (err) => {
       console.log(err);
       if (err.message === "ETIMEDOUT" && !peer.destroyed) {
-        console.log("trying to reconnect");
+        console.debug("trying to reconnect");
         setTimeout(this.setupReplication.bind(this), 0, peer, channelId);
       }
     });
 
     syncStream
-      .pipe(new LogBuffer("sent"))
       .pipe(new BufferToUint8Array())
       .pipe(new WrapMessage(Channel.userMessage, channelId))
       .pipe(peer)
       .pipe(new FilterAndUnwrap(Channel.userMessage, channelId))
       .pipe(new Uint8ArrayToBuffer())
-      .pipe(new LogBuffer("received"))
       .pipe(syncStream);
 
-    console.log("replication started", this);
+    console.debug("replication started", this);
   }
 
   private setupLighthouse(peer: SimplePeer.Instance, channelId: number) {
@@ -235,7 +229,7 @@ class LogBuffer extends Transform {
     callback: (err?: null | Error, data?: any) => void,
   ) {
     this.push(chunk);
-    console.log(this.prefix, chunk.toString("hex"));
+    console.info(this.prefix, chunk.toString("hex"));
     callback();
   }
 }

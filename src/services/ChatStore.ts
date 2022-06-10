@@ -89,7 +89,6 @@ export class ChatStore extends EventEmitter {
     )) as Buffer[];
 
     if (this.theirMessagesSynchronize.core) {
-      console.log(this.theirMessagesSynchronize.core.length);
       messages.push(
         ...((await promisify(this.theirMessagesSynchronize.core.getBatch).call(
           this.theirMessagesSynchronize.core,
