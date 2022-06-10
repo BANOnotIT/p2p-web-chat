@@ -285,32 +285,34 @@ export class DiscoveryManager extends EventEmitter {
 
     let sockets = Array.from(this.sockets.values());
     await Promise.all(
-      sockets.map(async (socket) => {
-        socket.send(
-          JSON.stringify({
-            action: TRACKER_ACTION,
-            info_hash: infoHash,
-            numwant: offerPoolSize,
-            peer_id: this.selfId,
-            offers: await Promise.all(
-              entries(announce.offers)
-                .filter(([, { acquired }]) => !acquired)
-                .map(async ([id, { signalP }]) => {
-                  const offer = await signalP;
+      sockets
+        .filter((socket) => socket.readyState === WebSocket.OPEN)
+        .map(async (socket) => {
+          socket.send(
+            JSON.stringify({
+              action: TRACKER_ACTION,
+              info_hash: infoHash,
+              numwant: offerPoolSize,
+              peer_id: this.selfId,
+              offers: await Promise.all(
+                entries(announce.offers)
+                  .filter(([, { acquired }]) => !acquired)
+                  .map(async ([id, { signalP }]) => {
+                    const offer = await signalP;
 
-                  return {
-                    offer_id: id,
-                    offer: {
-                      ...offer,
-                      // @ts-ignore
-                      sdp: await encrypt(announce.key, offer.sdp),
-                    },
-                  };
-                }),
-            ),
-          }),
-        );
-      }),
+                    return {
+                      offer_id: id,
+                      offer: {
+                        ...offer,
+                        // @ts-ignore
+                        sdp: await encrypt(announce.key, offer.sdp),
+                      },
+                    };
+                  }),
+              ),
+            }),
+          );
+        }),
     );
   }
 
