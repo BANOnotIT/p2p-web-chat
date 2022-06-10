@@ -69,9 +69,10 @@ declare module "random-access-storage" {
     size: number;
   }
 
-  type PublicCallback<T = undefined> =
-    | ((err: null, result: T) => void)
-    | ((err: Error, result: never) => void);
+  type PublicCallback<T = undefined> = (
+    err: null | Error,
+    result: T | null,
+  ) => void;
 
   export interface AbstractRandomAccess extends EventEmitter {
     readonly readable: boolean;
@@ -107,7 +108,7 @@ declare module "random-access-storage" {
         stat: (req: StatRequest<this>) => void;
         close: (req: CloseRequest<this>) => void;
         destroy: (req: DestroyRequest<this>) => void;
-      }>
+      }>,
     );
   }
 }

@@ -120,6 +120,8 @@ declare module "hypercore" {
 
         onauthenticate(remotePublicKey: Buffer, done: boolean);
         onfeedauthenticate(feed: this, remotePublicKey: Buffer, done: boolean);
+
+        timeout: number;
       }>,
     ): NodeJS.ReadWriteStream;
 
@@ -148,9 +150,9 @@ declare module "hypercore" {
       peers: FeedStats[];
     };
 
-    on(event: "peed-add", cb: (peer: Peer) => void): this;
-    on(event: "peed-remove", cb: (peer: Peer) => void): this;
-    on(event: "peed-open", cb: (peer: Peer) => void): this;
+    on(event: "peer-add", cb: (peer: Peer) => void): this;
+    on(event: "peer-remove", cb: (peer: Peer) => void): this;
+    on(event: "peer-open", cb: (peer: Peer) => void): this;
 
     peers: Peer[];
 
