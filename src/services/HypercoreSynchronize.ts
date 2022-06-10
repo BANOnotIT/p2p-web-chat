@@ -117,11 +117,19 @@ export class HypercoreSynchronize
 
     const syncStream = this.core.replicate(this.isProducer, {
       live: true,
-      timeout: 0,
       encrypted: false,
       download: true,
       upload: true,
     });
+
+    syncStream.once("error", (err) => {
+      console.log(err);
+      if (err.message === "ETIMEDOUT" && !peer.destroyed) {
+        console.log("trying to reconnect");
+        setTimeout(this.setupReplication.bind(this), 0, peer, channelId);
+      }
+    });
+
     syncStream
       .pipe(new LogBuffer("sent"))
       .pipe(new BufferToUint8Array())
