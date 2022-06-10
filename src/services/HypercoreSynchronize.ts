@@ -268,6 +268,7 @@ class PublicKeyLighthouse extends Readable {
     if (this.interval === null) {
       this.sendPublicKey();
 
+      // TODO tell to typescript we're not in node.js
       this.interval = setInterval(
         this.sendPublicKey,
         this.period,

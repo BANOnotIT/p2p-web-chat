@@ -1,0 +1,26 @@
+- [x] Sync both parties
+  - [x] Discover parties using torrent
+  - [x] Setup unified duplex channel
+  - [x] Reconnect on connection failure
+- [ ] Chat view
+  - [ ] React hooks 
+  - [ ] Messages view API
+    - [ ] Ordered view
+  - [ ] Online status indicator
+- [ ] Server backup
+  - [ ] Server websocket sync
+  - [ ] Server store cleanup
+- [ ] Typing status
+- [ ] Files sending
+  - [ ] Add file hypercore
+  - [ ] Implement attachment prop
+- [ ] Concurrency
+  - [ ] Identify two senders at a time
+- [ ] Archive functionality
+  - [ ] Delete unused chats
+  - [ ] Delete unused media (might be required to use hypercore 10 since 9 doesn't clear data, only marks it unusable)
+- [ ] Transfer
+  - [ ] Create shared secret view
+  - [ ] Create special class to establish sync channel
+    - [ ] Sync chat headers
+    - [ ] Sync chat contents
