@@ -1,6 +1,6 @@
 import { entries, events, fromEntries, genId } from "../utils/torrent";
 import { decrypt, encodeBytes, encrypt, genKey } from "../utils/crypto";
-import Peer from "simple-peer-light";
+import Peer from "simple-peer";
 import { EventEmitter } from "events";
 
 const libName = "poc";
