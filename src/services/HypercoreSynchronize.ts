@@ -26,9 +26,10 @@ export class HypercoreSynchronize
   implements
     Emitter<{
       "status-change": HyperCoreSyncStatus;
+      "core-initialized": HyperCoreFeed<Uint8Array>;
     }>
 {
-  public core: null | HyperCoreFeed<Buffer> = null;
+  public core: null | HyperCoreFeed<Uint8Array> = null;
 
   constructor(
     private store: (filename: string) => AbstractRandomAccess,
@@ -44,10 +45,14 @@ export class HypercoreSynchronize
   get status(): HyperCoreSyncStatus {
     if (!this.core) return HyperCoreSyncStatus.notInitialized;
 
-    if (this.core.peers.every((peer) => peer.remoteOpened))
-      return HyperCoreSyncStatus.online;
+    if (this.core.peers.length !== 0) {
+      const everyPeerOpened = this.core.peers.every(
+        (peer) => peer.remoteOpened,
+      );
 
-    if (this.core.peers.length !== 0) return HyperCoreSyncStatus.connecting;
+      if (everyPeerOpened) return HyperCoreSyncStatus.online;
+      else return HyperCoreSyncStatus.connecting;
+    }
 
     return HyperCoreSyncStatus.initializing;
   }
@@ -106,12 +111,16 @@ export class HypercoreSynchronize
     this.core = publicKey
       ? hypercore(this.store, Buffer.from(publicKey), { sparse: false })
       : hypercore(this.store, { sparse: false });
+    const core = this.core;
 
-    this.core.on("peer-add", () => this.emit("status-change", this.status));
-    this.core.on("peer-open", () => this.emit("status-change", this.status));
-    this.core.on("peer-remove", () => this.emit("status-change", this.status));
+    core.on("peer-add", () => this.emit("status-change", this.status));
+    core.on("peer-open", () => this.emit("status-change", this.status));
+    core.on("peer-remove", () => this.emit("status-change", this.status));
 
-    return new Promise((done) => this.core!.once("ready", () => done(true)));
+    await new Promise((done) => core.once("ready", () => done(null)));
+    this.emit("core-initialized", core);
+
+    return true;
   }
 
   private async setupReplication(peer: SimplePeer.Instance, channelId: number) {
@@ -125,6 +134,7 @@ export class HypercoreSynchronize
       encrypted: false,
       download: true,
       upload: true,
+      ack: true,
     });
 
     syncStream.once("error", (err) => {

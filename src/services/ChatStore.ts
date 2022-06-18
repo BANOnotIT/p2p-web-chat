@@ -8,14 +8,17 @@ import {
   HyperCoreSyncStatus,
 } from "./HypercoreSynchronize";
 import Peer from "simple-peer";
-import { promisify } from "bluebird";
 import EventEmitter from "events";
+import { MessageViewer } from "./MessageViewer";
+import { HyperCoreFeed } from "hypercore";
+import { promisify } from "bluebird";
 
 export class ChatStore extends EventEmitter {
-  private cryptor: AESCBCCryptor;
+  private readonly cryptor: AESCBCCryptor;
+  private readonly messageViewer: MessageViewer;
 
-  private myMessagesSynchronize: HypercoreSynchronize;
-  private theirMessagesSynchronize: HypercoreSynchronize;
+  private readonly myMessagesSynchronize: HypercoreSynchronize;
+  private readonly theirMessagesSynchronize: HypercoreSynchronize;
 
   private chatInfoHash: null | string = null;
 
@@ -27,6 +30,8 @@ export class ChatStore extends EventEmitter {
   ) {
     super();
     this.cryptor = AESCBCCryptor.fromU8Array(insides.sharedSecret);
+
+    this.messageViewer = new MessageViewer(this.cryptor);
 
     const myStore = (filename: string) =>
       messagesRandomAccessDB(`chat-messages-${insides.uuid}:my-${filename}`);
@@ -48,16 +53,37 @@ export class ChatStore extends EventEmitter {
     );
 
     this.discoveryMgr.on("peer connected", this.peerConnectedListener);
+    this.messageViewer.on("ready", () => this.emit("messages-updated"));
+
     this.myMessagesSynchronize.on("status-change", () => {
       this.emit("online-change", this.onlineStatus);
     });
+    this.myMessagesSynchronize.once(
+      "core-initialized",
+      (core: HyperCoreFeed<Uint8Array>) => {
+        this.messageViewer.registerFeed(core, 0);
+        void this.requestInitialMessages(10);
+      },
+    );
+
     this.theirMessagesSynchronize.on("status-change", () =>
       this.emit("online-change", this.onlineStatus),
+    );
+    this.theirMessagesSynchronize.once(
+      "core-initialized",
+      (core: HyperCoreFeed<Uint8Array>) => {
+        this.messageViewer.registerFeed(core, 1);
+        void this.requestInitialMessages(10);
+      },
     );
 
     this.on("online-change", () => {
       console.log("Online status: ", HyperCoreSyncStatus[this.onlineStatus]);
     });
+  }
+
+  get messages() {
+    return this.messageViewer.messages;
   }
 
   get onlineStatus(): HyperCoreSyncStatus {
@@ -66,8 +92,15 @@ export class ChatStore extends EventEmitter {
       this.theirMessagesSynchronize.status,
     ] as number[];
 
+    if (statuses.some((stat) => stat === HyperCoreSyncStatus.initializing))
+      return HyperCoreSyncStatus.initializing;
+
+    if (statuses.some((stat) => stat === HyperCoreSyncStatus.connecting))
+      return HyperCoreSyncStatus.connecting;
+
     return Math.min(...statuses) as HyperCoreSyncStatus;
   }
+
   destroy() {
     this.discoveryMgr.off("peer connected", this.peerConnectedListener);
     if (this.chatInfoHash) this.discoveryMgr.stopAnnouncing(this.chatInfoHash);
@@ -86,56 +119,22 @@ export class ChatStore extends EventEmitter {
 
   async connectToPeers() {
     await this.myMessagesSynchronize.initializeCore();
+    await this.theirMessagesSynchronize.initializeCore();
     await this.discoveryMgr.connectToTrackers();
     this.chatInfoHash = await this.discoveryMgr.createAnnounce(
       this.insides.sharedSecret.toString(),
     );
   }
 
-  async getMessages(): Promise<UserMessageBuf[]> {
-    if (
-      !this.myMessagesSynchronize.core ||
-      this.myMessagesSynchronize.core?.length === 0 ||
-      !this.myMessagesSynchronize.core?.readable
-    ) {
-      return [];
-    }
-
-    let messages = (await promisify(
-      this.myMessagesSynchronize.core.getBatch,
-    ).call(
-      this.myMessagesSynchronize.core,
-      0,
-      this.myMessagesSynchronize.core.length,
-    )) as Buffer[];
-
-    if (this.theirMessagesSynchronize.core) {
-      messages.push(
-        ...((await promisify(this.theirMessagesSynchronize.core.getBatch).call(
-          this.theirMessagesSynchronize.core,
-          0,
-          this.theirMessagesSynchronize.core.length,
-        )) as Buffer[]),
-      );
-    }
-
-    return Promise.all(
-      messages?.map((message) => this.decryptMessage(Uint8Array.from(message))),
-    );
-  }
-
   async sendMessage(msg: UserMessageBuf) {
     const encryptedBlob = await this.encryptMessage(msg);
 
-    return new Promise((done, error) => {
-      this.myMessagesSynchronize.core!.append(
-        Buffer.from(encryptedBlob),
-        (err: null | Error) => {
-          if (err) return error(err);
-          done(encryptedBlob);
-        },
-      );
-    });
+    await promisify(this.myMessagesSynchronize.core!.append).call(
+      this.myMessagesSynchronize.core!,
+      Buffer.from(encryptedBlob),
+    );
+
+    await this.messageViewer.updateHead();
   }
 
   async decryptMessage(entity: Uint8Array): Promise<UserMessageBuf> {
@@ -147,7 +146,14 @@ export class ChatStore extends EventEmitter {
     return this.cryptor.encrypt(encoded);
   }
 
-  private peerConnectedListener = ({
+  async requestTailMessages(count: number) {
+    return this.messageViewer.updateTail(count);
+  }
+  async requestInitialMessages(count: number) {
+    return this.messageViewer.updateTail(count, true);
+  }
+
+  private peerConnectedListener = async ({
     peer,
     infoHash,
     peerId,
@@ -156,9 +162,14 @@ export class ChatStore extends EventEmitter {
     infoHash: string;
     peerId: string;
   }) => {
-    if (infoHash === this.chatInfoHash) {
-      this.myMessagesSynchronize.registerRTCPeer(peer, peerId);
-      this.theirMessagesSynchronize?.registerRTCPeer(peer, peerId);
-    }
+    if (infoHash !== this.chatInfoHash) return;
+
+    await Promise.all([
+      this.myMessagesSynchronize.registerRTCPeer(peer, peerId),
+      this.theirMessagesSynchronize.registerRTCPeer(peer, peerId),
+    ]);
+
+    await this.requestInitialMessages(10);
+    return;
   };
 }

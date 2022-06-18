@@ -1,20 +1,16 @@
 import { ChatStore } from "../services/ChatStore";
-import { UserMessageBuf } from "../protobuf/UserMessage.buf";
 import { SyntheticEvent, useCallback, useEffect, useState } from "react";
-import { Button, Input } from "@chakra-ui/react";
-import { genId } from "../utils/torrent";
+import { Box, Button, Input } from "@chakra-ui/react";
+import { useChat } from "../hooks/useChat";
+import { HyperCoreSyncStatus } from "../services/HypercoreSynchronize";
 
 type Props = {
   chat: ChatStore;
 };
 export const MessagesList = (props: Props) => {
-  const [messages, setMessages] = useState<Array<UserMessageBuf>>([]);
-
   const [messageText, setMessageText] = useState("");
 
-  useEffect(() => {
-    props.chat.getMessages().then(setMessages);
-  }, [props.chat]);
+  const { onlineStatus, messages, sendMessage, init } = useChat(props.chat);
 
   const handleSending = useCallback(
     (event?: SyntheticEvent) => {
@@ -22,34 +18,34 @@ export const MessagesList = (props: Props) => {
 
       if (!messageText) return;
 
-      const msg = new UserMessageBuf();
-      msg.text = messageText;
-      msg.sender = "me";
-      msg.nonce = genId(20);
-      msg.padding = genId(Math.max(0, 100 - messageText.length));
-      msg.senderTimestamp = Date.now();
-
-      void props.chat.sendMessage(msg);
+      sendMessage(messageText);
       setMessageText("");
     },
-    [messageText, props.chat],
+    [messageText, sendMessage],
   );
 
   useEffect(() => {
-    props.chat.connectToPeers();
+    void props.chat.connectToPeers();
 
     return () => {
       props.chat.destroy();
     };
   }, [props.chat]);
 
+  useEffect(() => {
+    void init();
+  }, [init]);
+
   return (
-    <div>
-      {messages.map((message) => (
-        <div key={message.nonce}>
-          {message.sender}: {message.text}
-        </div>
-      ))}
+    <Box maxHeight={"100vh"} display={"flex"} flexDir={"column"}>
+      <Box>{HyperCoreSyncStatus[onlineStatus]}</Box>
+      <Box flexGrow={1} overflowY={"scroll"}>
+        {messages.map((message) => (
+          <div key={message.uuid}>
+            {message.fromParticipant === 0 ? "me" : "them"}: {message.text}
+          </div>
+        ))}
+      </Box>
 
       <form onSubmit={handleSending}>
         <Input
@@ -58,6 +54,6 @@ export const MessagesList = (props: Props) => {
         />
         <Button onClick={handleSending}>send</Button>
       </form>
-    </div>
+    </Box>
   );
 };
